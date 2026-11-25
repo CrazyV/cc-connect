@@ -40,6 +40,9 @@
 </p>
 
 
+> **Fork 说明：** 本仓库是 [chenhg5/cc-connect](https://github.com/chenhg5/cc-connect) 的个人 fork，
+> 背景与完整改动清单见 [FORK.md](FORK.md)。
+
 ## ❤️ 赞助
 
 > 想在这里展示？联系：chg80333@gmail.com | 微信：mongorz

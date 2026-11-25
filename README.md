@@ -40,6 +40,9 @@
 </p>
 
 
+> **Fork note:** this is a personal fork of [chenhg5/cc-connect](https://github.com/chenhg5/cc-connect).
+> See [FORK.md](FORK.md) for the background and the full list of changes.
+
 ## ❤️ Sponsor
 
 > Want to appear here? Contact: chg80333@gmail.com | WeChat: mongorz
