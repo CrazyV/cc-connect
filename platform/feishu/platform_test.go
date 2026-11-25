@@ -2013,6 +2013,39 @@ func TestCardAction_NavFast_ReturnsCard(t *testing.T) {
 	}
 }
 
+func TestCardAction_FastCardCanIncludeToast(t *testing.T) {
+	platformAny, err := New(map[string]any{"app_id": "cli_xxx", "app_secret": "secret", "enable_feishu_card": true})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	ip := platformAny.(*interactivePlatform)
+	ip.cardNavHandler = func(action string, sessionKey string) *core.Card {
+		card := core.NewCard().Markdown("updated dir").Build()
+		card.Toast = "✅ Switched to Target Project"
+		return card
+	}
+
+	resp, err := ip.onCardAction(&callback.CardActionTriggerEvent{
+		Event: &callback.CardActionTriggerRequest{
+			Operator: &callback.Operator{OpenID: "ou_test_user"},
+			Action:   &callback.CallBackAction{Value: map[string]any{"action": "act:/dir use token"}},
+			Context:  &callback.Context{OpenChatID: "oc_test_chat", OpenMessageID: "om_test_message"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("onCardAction() error = %v", err)
+	}
+	if resp == nil || resp.Card == nil {
+		t.Fatalf("expected card response, got %#v", resp)
+	}
+	if resp.Toast == nil || resp.Toast.Content != "✅ Switched to Target Project" {
+		t.Fatalf("toast = %#v, want switched feedback", resp.Toast)
+	}
+	if resp.Toast.Type != "success" {
+		t.Fatalf("toast type = %q, want success", resp.Toast.Type)
+	}
+}
+
 func TestCardAction_NavSlow_ReturnsToastThenRefreshes(t *testing.T) {
 	platformAny, err := New(map[string]any{"app_id": "cli_xxx", "app_secret": "secret", "enable_feishu_card": true})
 	if err != nil {

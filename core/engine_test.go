@@ -689,6 +689,33 @@ func (a *stubWorkDirAgent) GetWorkDir() string {
 	return a.workDir
 }
 
+type recentStubWorkDirAgent struct {
+	stubWorkDirAgent
+	name        string
+	displayName string
+	recent      []RecentWorkDir
+	err         error
+}
+
+func (a *recentStubWorkDirAgent) Name() string {
+	if a.name == "" {
+		return "recent-stub-workdir"
+	}
+	return a.name
+}
+
+func (a *recentStubWorkDirAgent) CLIDisplayName() string {
+	return a.displayName
+}
+
+func (a *recentStubWorkDirAgent) CLIBinaryName() string {
+	return a.name
+}
+
+func (a *recentStubWorkDirAgent) RecentWorkDirs(context.Context, int) ([]RecentWorkDir, error) {
+	return a.recent, a.err
+}
+
 type namedStubWorkDirAgent struct {
 	stubWorkDirAgent
 	name string
@@ -2741,6 +2768,21 @@ func countCardActionValues(card *Card, prefix string) int {
 		}
 	}
 	return count
+}
+
+func dirActionPaths(card *Card) []string {
+	var paths []string
+	for _, elem := range card.Elements {
+		item, ok := elem.(CardListItem)
+		if !ok || !strings.HasPrefix(item.BtnValue, "act:/dir use ") {
+			continue
+		}
+		path, _, ok := decodeDirActionSelection(strings.TrimPrefix(item.BtnValue, "act:/dir use "))
+		if ok {
+			paths = append(paths, path)
+		}
+	}
+	return paths
 }
 
 func waitForSentCard(t *testing.T, p *stubCardPlatform) *Card {
@@ -6853,6 +6895,162 @@ func TestRenderDirCard_HistoryRowsUseSelectActions(t *testing.T) {
 	}
 	if got := countCardActionValues(card, "act:/dir select "); got != 2 {
 		t.Fatalf("dir select actions = %d, want 2", got)
+	}
+}
+
+func TestRenderDirCard_RecentProjectsAreAgentScoped(t *testing.T) {
+	tempDir := t.TempDir()
+	currentDir := filepath.Join(tempDir, "current")
+	codexDir := filepath.Join(tempDir, "codex-project")
+	claudeDir := filepath.Join(tempDir, "claude-project")
+	for _, dir := range []string{currentDir, codexDir, claudeDir} {
+		if err := os.Mkdir(dir, 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+	}
+	now := time.Now()
+
+	codexAgent := &recentStubWorkDirAgent{
+		stubWorkDirAgent: stubWorkDirAgent{workDir: currentDir},
+		name:             "codex",
+		displayName:      "Codex",
+		recent: []RecentWorkDir{{
+			Name:         "Codex Project",
+			Path:         codexDir,
+			LastActivity: now,
+			SessionCount: 3,
+		}},
+	}
+	claudeAgent := &recentStubWorkDirAgent{
+		stubWorkDirAgent: stubWorkDirAgent{workDir: currentDir},
+		name:             "claudecode",
+		displayName:      "Claude",
+		recent: []RecentWorkDir{{
+			Path:         claudeDir,
+			LastActivity: now,
+			SessionCount: 2,
+		}},
+	}
+
+	codexEngine := NewEngine("codex-feishu", codexAgent, []Platform{&stubPlatformEngine{n: "test"}}, t.TempDir(), LangEnglish)
+	codexCard, err := codexEngine.renderDirCard("test:user1", 1)
+	if err != nil {
+		t.Fatalf("render codex dir card: %v", err)
+	}
+	codexText := codexCard.RenderText()
+	if !strings.Contains(codexText, "Recent Codex projects") {
+		t.Fatalf("codex card = %q, want recent Codex projects section", codexText)
+	}
+	if !strings.Contains(codexText, "Codex Project") {
+		t.Fatalf("codex card = %q, want project name", codexText)
+	}
+	if strings.Contains(codexText, claudeDir) {
+		t.Fatalf("codex card leaked Claude project %q: %q", claudeDir, codexText)
+	}
+	if got := countCardActionValues(codexCard, "act:/dir use "); got != 1 {
+		t.Fatalf("codex recent project actions = %d, want 1", got)
+	}
+	if got := dirActionPaths(codexCard); len(got) != 1 || got[0] != codexDir {
+		t.Fatalf("codex recent project paths = %v, want [%s]", got, codexDir)
+	}
+
+	claudeEngine := NewEngine("claude-feishu", claudeAgent, []Platform{&stubPlatformEngine{n: "test"}}, t.TempDir(), LangEnglish)
+	claudeCard, err := claudeEngine.renderDirCard("test:user1", 1)
+	if err != nil {
+		t.Fatalf("render claude dir card: %v", err)
+	}
+	claudeText := claudeCard.RenderText()
+	if !strings.Contains(claudeText, "Recent Claude projects") {
+		t.Fatalf("claude card = %q, want recent Claude projects section", claudeText)
+	}
+	if strings.Contains(claudeText, codexDir) {
+		t.Fatalf("claude card leaked Codex project %q: %q", codexDir, claudeText)
+	}
+	if got := dirActionPaths(claudeCard); len(got) != 1 || got[0] != claudeDir {
+		t.Fatalf("claude recent project paths = %v, want [%s]", got, claudeDir)
+	}
+}
+
+func TestHandleCardNav_DirRecentProjectSwitchesWorkDir(t *testing.T) {
+	tempDir := t.TempDir()
+	currentDir := filepath.Join(tempDir, "current")
+	targetDir := filepath.Join(tempDir, "target")
+	for _, dir := range []string{currentDir, targetDir} {
+		if err := os.Mkdir(dir, 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+	}
+	agent := &recentStubWorkDirAgent{
+		stubWorkDirAgent: stubWorkDirAgent{workDir: currentDir},
+		name:             "codex",
+		recent: []RecentWorkDir{{
+			Name:         "Target Project",
+			Path:         targetDir,
+			LastActivity: time.Now(),
+			SessionCount: 1,
+		}},
+	}
+	e := NewEngine("test", agent, []Platform{&stubPlatformEngine{n: "test"}}, t.TempDir(), LangEnglish)
+	e.SetDirHistory(NewDirHistory(t.TempDir()))
+	sk := "test:user1"
+
+	card, err := e.renderDirCard(sk, 1)
+	if err != nil {
+		t.Fatalf("render dir card: %v", err)
+	}
+	action := ""
+	for _, elem := range card.Elements {
+		if item, ok := elem.(CardListItem); ok && strings.HasPrefix(item.BtnValue, "act:/dir use ") {
+			action = item.BtnValue
+			break
+		}
+	}
+	if action == "" {
+		t.Fatal("recent project action not found")
+	}
+
+	updatedCard := e.handleCardNav(action, sk)
+	if agent.workDir != targetDir {
+		t.Fatalf("workDir = %q, want %q", agent.workDir, targetDir)
+	}
+	if updatedCard == nil {
+		t.Fatal("expected updated dir card")
+	}
+	if !strings.Contains(updatedCard.Toast, "Target Project") {
+		t.Fatalf("toast = %q, want switched project name", updatedCard.Toast)
+	}
+}
+
+func TestCmdDir_TextShowsRecentAgentProjects(t *testing.T) {
+	tempDir := t.TempDir()
+	currentDir := filepath.Join(tempDir, "current")
+	targetDir := filepath.Join(tempDir, "target")
+	for _, dir := range []string{currentDir, targetDir} {
+		if err := os.Mkdir(dir, 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+	}
+	p := &stubPlatformEngine{n: "plain"}
+	agent := &recentStubWorkDirAgent{
+		stubWorkDirAgent: stubWorkDirAgent{workDir: currentDir},
+		name:             "codex",
+		displayName:      "Codex",
+		recent: []RecentWorkDir{{
+			Path:         targetDir,
+			LastActivity: time.Now(),
+			SessionCount: 4,
+		}},
+	}
+	e := NewEngine("test", agent, []Platform{p}, t.TempDir(), LangEnglish)
+	e.SetDirHistory(NewDirHistory(t.TempDir()))
+
+	e.cmdDir(p, &Message{SessionKey: "test:user1", ReplyCtx: "ctx"}, nil)
+
+	if len(p.sent) != 1 {
+		t.Fatalf("sent = %d messages, want 1", len(p.sent))
+	}
+	if !strings.Contains(p.sent[0], "Recent Codex projects") || !strings.Contains(p.sent[0], targetDir) {
+		t.Fatalf("sent = %q, want recent Codex project %q", p.sent[0], targetDir)
 	}
 }
 

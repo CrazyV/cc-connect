@@ -12,7 +12,7 @@
   <a href="https://www.npmjs.com/package/cc-connect">
     <img src="https://img.shields.io/npm/dm/cc-connect?logo=npm" alt="npm downloads"/>
   </a>
-  <a href="https://github.com/chenhg5/cc-connect/blob/main/LICENSE">
+  <a href="./LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License"/>
   </a>
   <a href="https://goreportcard.com/report/github.com/chenhg5/cc-connect">
@@ -251,7 +251,7 @@ High-level view of what each **built-in platform** can do in cc-connect.
 ### 🎮 Complete Chat Control
 **Full Control from Chat** — Switch models (`/model`), tune reasoning (`/reasoning`), change permission modes (`/mode`), manage sessions, all via slash commands.
 
-**Directory Switching in Chat** — Change where the next session starts with `/dir <path>` (and `/cd <path>` as a compatibility alias), plus quick history jump via `/dir <number>` / `/dir -`.
+**Directory Switching in Chat** — Change where the next session starts with `/dir <path>` (and `/cd <path>` as a compatibility alias), plus quick history jump via `/dir <number>` / `/dir -`. The `/dir` card also lists projects for the current agent: Codex reads the Codex Desktop project registry, while Claude Code reads its own project session directories, so their lists never mix.
 
 ### 🧠 Persistent Memory
 **Agent Memory** — Read and write agent instruction files (`/memory`) without touching the terminal.
@@ -582,7 +582,7 @@ start if any gate fails or if the probe detects a cross-user leak.
 ### 📂 Work Directory
 
 ```
-/dir                         Show current work directory and history
+/dir                         Show current work directory, recent projects, and history
 /dir <path>                  Switch to a path (relative or absolute)
 /dir <number>                Switch from history
 /dir -                       Switch to previous directory

@@ -1116,12 +1116,19 @@ func (p *Platform) onCardAction(event *callback.CardActionTriggerEvent) (*callba
 			select {
 			case card := <-done:
 				if card != nil {
-					return &callback.CardActionTriggerResponse{
+					resp := &callback.CardActionTriggerResponse{
 						Card: &callback.Card{
 							Type: "raw",
 							Data: renderCardMap(card, sessionKey),
 						},
-					}, nil
+					}
+					if card.Toast != "" {
+						resp.Toast = &callback.Toast{
+							Type:    "success",
+							Content: card.Toast,
+						}
+					}
+					return resp, nil
 				}
 			case <-time.After(cardNavTimeout):
 				go func() {

@@ -12,7 +12,7 @@
   <a href="https://www.npmjs.com/package/cc-connect">
     <img src="https://img.shields.io/npm/dm/cc-connect?logo=npm" alt="npm downloads"/>
   </a>
-  <a href="https://github.com/chenhg5/cc-connect/blob/main/LICENSE">
+  <a href="./LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License"/>
   </a>
   <a href="https://goreportcard.com/report/github.com/chenhg5/cc-connect">

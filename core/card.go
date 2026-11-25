@@ -11,6 +11,10 @@ import (
 type Card struct {
 	Header   *CardHeader
 	Elements []CardElement
+	// Toast is transient feedback for platforms that support an ephemeral
+	// notification alongside an in-place card update. It is not rendered as
+	// card content.
+	Toast string
 }
 
 // CardHeader is the optional colored title bar of a card.

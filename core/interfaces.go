@@ -626,6 +626,23 @@ type WorkDirSwitcher interface {
 	GetWorkDir() string
 }
 
+// RecentWorkDir describes a directory in which the agent has previously run
+// sessions. It is used by /dir to expose agent-specific project shortcuts
+// without teaching core about any particular agent's session storage.
+type RecentWorkDir struct {
+	Name         string
+	Path         string
+	LastActivity time.Time
+	SessionCount int
+}
+
+// RecentWorkDirProvider is implemented by agents that can discover directories
+// from their own session history. Results should be sorted by LastActivity,
+// newest first, and limited to directories that still exist.
+type RecentWorkDirProvider interface {
+	RecentWorkDirs(ctx context.Context, limit int) ([]RecentWorkDir, error)
+}
+
 // AgentOptsProvider is an optional interface for agents that need to carry
 // their full configuration options when the engine clones a per-workspace
 // agent instance in multi-workspace mode. The engine merges the returned map

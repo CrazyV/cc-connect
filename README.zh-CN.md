@@ -12,7 +12,7 @@
   <a href="https://www.npmjs.com/package/cc-connect">
     <img src="https://img.shields.io/npm/dm/cc-connect?logo=npm" alt="npm downloads"/>
   </a>
-  <a href="https://github.com/chenhg5/cc-connect/blob/main/LICENSE">
+  <a href="./LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License"/>
   </a>
   <a href="https://goreportcard.com/report/github.com/chenhg5/cc-connect">
@@ -250,7 +250,7 @@ cc-connect 已支持 Kimi CLI。立即体验 **Kimi Code 订阅**（[中文站](
 ### 🎮 完整的聊天控制
 **聊天即控制** — 切换模型 (`/model`)、切换推理强度 (`/reasoning`)、切换权限模式 (`/mode`)、管理会话，全部通过斜杠命令完成。
 
-**聊天切换工作目录** — 使用 `/dir <路径>` 切换下一次会话启动目录（`/cd <路径>` 为兼容别名），并支持 `/dir <序号>` / `/dir -` 快速在历史目录间跳转。
+**聊天切换工作目录** — 使用 `/dir <路径>` 切换下一次会话启动目录（`/cd <路径>` 为兼容别名），并支持 `/dir <序号>` / `/dir -` 快速在历史目录间跳转。`/dir` 卡片还会列出当前 Agent 的项目；Codex 读取 Codex Desktop 的项目注册表，Claude Code 读取自己的项目会话目录，两边不会互相混入。
 
 ### 🧠 持久化记忆
 **Agent 记忆** — 在聊天中直接读写 Agent 指令文件 (`/memory`)，无需回到终端。
@@ -568,7 +568,7 @@ cc-connect doctor user-isolation
 ### 📂 工作目录
 
 ```
-/dir                         查看当前工作目录与历史
+/dir                         查看当前工作目录、最近项目与历史
 /dir <路径>                  切换到指定目录（相对或绝对路径）
 /dir <序号>                  按历史序号切换
 /dir -                       返回上一个目录

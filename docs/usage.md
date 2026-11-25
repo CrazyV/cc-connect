@@ -357,7 +357,7 @@ Switch where the next agent session starts, directly from chat.
 ### Chat Commands
 
 ```
-/dir                    Show current work directory and recent history
+/dir                    Show current work directory, recent projects, and recent history
 /dir <path>             Switch to a path (relative or absolute)
 /dir <number>           Switch to a directory from history
 /dir -                  Switch back to previous directory
@@ -375,6 +375,7 @@ Switch where the next agent session starts, directly from chat.
 - Directory changes apply to the next session in the current project.
 - Relative paths are resolved from the current agent work directory.
 - Directory history is project-scoped and can be switched by index.
+- The "Recent projects" section comes from the current agent's own project data: Codex uses the Codex Desktop project registry, while Claude Code reads its project session directories. The two lists never mix.
 - `/cd` is kept for compatibility, but `/dir` is the primary command.
 
 Example config:

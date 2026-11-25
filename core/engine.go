@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -8346,6 +8347,137 @@ func (e *Engine) listCommandSessions(agent Agent, sessions *SessionManager, sess
 // dirCardPageSize is the max directory history rows per card page (Feishu / other card UIs).
 const dirCardPageSize = 20
 
+// dirCardRecentLimit bounds the agent-specific project shortcuts rendered in
+// /dir so a long session history cannot crowd out the directory history.
+const dirCardRecentLimit = 12
+
+func dirPathKey(path string) string {
+	normalized := normalizeWorkspacePath(path)
+	if runtime.GOOS == "windows" {
+		return strings.ToLower(normalized)
+	}
+	return normalized
+}
+
+func (e *Engine) recentWorkDirsForAgent(agent Agent, currentDir string, limit int) []RecentWorkDir {
+	provider, ok := agent.(RecentWorkDirProvider)
+	if !ok || limit <= 0 {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(e.ctx, 3*time.Second)
+	defer cancel()
+	dirs, err := provider.RecentWorkDirs(ctx, limit)
+	if err != nil {
+		slog.Warn("recent work dirs: provider failed", "agent", agent.Name(), "error", err)
+		return nil
+	}
+
+	currentKey := dirPathKey(currentDir)
+	seen := make(map[string]struct{}, len(dirs))
+	result := make([]RecentWorkDir, 0, len(dirs))
+	for _, dir := range dirs {
+		path := strings.TrimSpace(dir.Path)
+		if path == "" {
+			continue
+		}
+		absPath, err := filepath.Abs(path)
+		if err != nil {
+			continue
+		}
+		info, err := os.Stat(absPath)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+		key := dirPathKey(absPath)
+		if key == currentKey {
+			continue
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		dir.Path = absPath
+		result = append(result, dir)
+	}
+
+	sort.SliceStable(result, func(i, j int) bool {
+		return result[i].LastActivity.After(result[j].LastActivity)
+	})
+	if len(result) > limit {
+		result = result[:limit]
+	}
+	return result
+}
+
+func (e *Engine) workDirForKey(sessionKey string) string {
+	agent, _ := e.sessionContextForKey(sessionKey)
+	switcher, ok := agent.(WorkDirSwitcher)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(switcher.GetWorkDir())
+}
+
+func (e *Engine) dirSwitchToast(sessionKey, args, beforeDir string) string {
+	fields := strings.Fields(args)
+	if len(fields) == 0 {
+		return ""
+	}
+	switch fields[0] {
+	case "use", "select", "reset", "prev":
+	default:
+		return ""
+	}
+	afterDir := e.workDirForKey(sessionKey)
+	if afterDir == "" || dirPathKey(afterDir) == dirPathKey(beforeDir) {
+		return ""
+	}
+	label := filepath.Base(afterDir)
+	if fields[0] == "use" && len(fields) >= 2 {
+		if _, name, ok := decodeDirActionSelection(fields[1]); ok && strings.TrimSpace(name) != "" {
+			label = name
+		}
+	}
+	return e.i18n.Tf(MsgDirSwitchedToast, label)
+}
+
+func agentDisplayName(agent Agent) string {
+	if info, ok := agent.(AgentDoctorInfo); ok {
+		if name := strings.TrimSpace(info.CLIDisplayName()); name != "" {
+			return name
+		}
+	}
+	return agent.Name()
+}
+
+func encodeDirActionSelection(path, name string) string {
+	payload, _ := json.Marshal(struct {
+		Path string `json:"path"`
+		Name string `json:"name,omitempty"`
+	}{
+		Path: path,
+		Name: name,
+	})
+	return base64.RawURLEncoding.EncodeToString(payload)
+}
+
+func decodeDirActionSelection(token string) (path, name string, ok bool) {
+	decoded, err := base64.RawURLEncoding.DecodeString(token)
+	if err != nil || len(decoded) == 0 {
+		return "", "", false
+	}
+	var selection struct {
+		Path string `json:"path"`
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(decoded, &selection); err == nil && selection.Path != "" {
+		return selection.Path, selection.Name, true
+	}
+	// Compatibility with cards rendered before the action payload gained a name.
+	return string(decoded), "", true
+}
+
 func (e *Engine) cmdList(p Platform, msg *Message, args []string) {
 	agent, sessions, _, err := e.commandContext(p, msg)
 	if err != nil {
@@ -9779,6 +9911,24 @@ func (e *Engine) cmdDir(p Platform, msg *Message, args []string) {
 		}
 		var sb strings.Builder
 		sb.WriteString(e.i18n.Tf(MsgDirCurrent, currentDir))
+
+		recentDirs := e.recentWorkDirsForAgent(agent, currentDir, dirCardRecentLimit)
+		if len(recentDirs) > 0 {
+			sb.WriteString("\n\n")
+			sb.WriteString(e.i18n.Tf(MsgDirRecentTitle, agentDisplayName(agent)))
+			for i, dir := range recentDirs {
+				meta := e.i18n.Tf(
+					MsgDirRecentMeta,
+					dir.SessionCount,
+					dir.LastActivity.Local().Format("01-02 15:04"),
+				)
+				name := ""
+				if dir.Name != "" {
+					name = dir.Name + " — "
+				}
+				sb.WriteString(fmt.Sprintf("\n  ◻ %d. %s%s · %s", i+1, name, dir.Path, meta))
+			}
+		}
 
 		if e.dirHistory != nil {
 			history := e.dirHistory.List(e.name)
@@ -13598,6 +13748,10 @@ func (e *Engine) handleCardNav(action string, sessionKey string) *Card {
 		return e.handleModelCardAction(args, sessionKey)
 	}
 
+	beforeDir := ""
+	if prefix == "act" && cmd == "/dir" {
+		beforeDir = e.workDirForKey(sessionKey)
+	}
 	if prefix == "act" {
 		e.executeCardAction(cmd, args, sessionKey)
 	}
@@ -13631,7 +13785,11 @@ func (e *Engine) handleCardNav(action string, sessionKey string) *Card {
 				page = n
 			}
 		}
-		return e.renderDirCardSafe(sessionKey, page)
+		card := e.renderDirCardSafe(sessionKey, page)
+		if prefix == "act" {
+			card.Toast = e.dirSwitchToast(sessionKey, args, beforeDir)
+		}
+		return card
 	case "/current":
 		return e.renderCurrentCard(sessionKey)
 	case "/history":
@@ -13971,6 +14129,15 @@ func (e *Engine) executeCardAction(cmd, args, sessionKey string) {
 				return
 			}
 			applyArgs = []string{fields[1]}
+		case "use":
+			if len(fields) < 2 {
+				return
+			}
+			path, _, ok := decodeDirActionSelection(fields[1])
+			if !ok {
+				return
+			}
+			applyArgs = []string{path}
 		case "reset":
 			applyArgs = []string{"reset"}
 		case "prev":
@@ -14797,6 +14964,7 @@ func (e *Engine) renderDirCard(sessionKey string, page int) (*Card, error) {
 		return nil, fmt.Errorf("%s", e.i18n.T(MsgDirNotSupported))
 	}
 	currentDir := switcher.GetWorkDir()
+	recentDirs := e.recentWorkDirsForAgent(agent, currentDir, dirCardRecentLimit)
 	var history []string
 	if e.dirHistory != nil {
 		history = e.dirHistory.List(e.name)
@@ -14820,10 +14988,36 @@ func (e *Engine) renderDirCard(sessionKey string, page int) (*Card, error) {
 
 	cb := NewCard().Title(e.i18n.T(MsgDirCardTitle), "turquoise")
 	cb.Markdown(e.i18n.Tf(MsgDirCurrent, currentDir))
+	if len(recentDirs) > 0 {
+		cb.Divider()
+		cb.Markdown(e.i18n.Tf(MsgDirRecentTitle, agentDisplayName(agent)))
+		for i, dir := range recentDirs {
+			meta := e.i18n.Tf(
+				MsgDirRecentMeta,
+				dir.SessionCount,
+				dir.LastActivity.Local().Format("01-02 15:04"),
+			)
+			name := ""
+			if dir.Name != "" {
+				name = fmt.Sprintf("**%s** — ", dir.Name)
+			}
+			cb.ListItemBtn(
+				fmt.Sprintf("◻ **%d.** %s`%s` · %s", i+1, name, dirCardTruncPath(dir.Path), meta),
+				fmt.Sprintf("#%d", i+1),
+				"default",
+				"act:/dir use "+encodeDirActionSelection(dir.Path, dir.Name),
+			)
+		}
+	}
 	if total == 0 {
-		cb.Note(e.i18n.T(MsgDirCardEmptyHistory))
+		if len(recentDirs) == 0 {
+			cb.Note(e.i18n.T(MsgDirCardEmptyHistory))
+		}
 	} else {
 		cb.Divider()
+		if len(recentDirs) > 0 {
+			cb.Markdown(e.i18n.T(MsgDirHistoryTitle))
+		}
 		for i := start; i < end; i++ {
 			dir := history[i]
 			marker := "◻"

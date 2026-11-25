@@ -652,6 +652,9 @@ const (
 	MsgDirCardEmptyHistory MsgKey = "dir_card_empty_history"
 	MsgDirCardReset        MsgKey = "dir_card_reset"
 	MsgDirCardPrev         MsgKey = "dir_card_prev"
+	MsgDirRecentTitle      MsgKey = "dir_recent_title"
+	MsgDirRecentMeta       MsgKey = "dir_recent_meta"
+	MsgDirSwitchedToast    MsgKey = "dir_switched_toast"
 	MsgShow                MsgKey = "show"
 	MsgShowUsage           MsgKey = "show_usage"
 	MsgShowParseError      MsgKey = "show_parse_error"
@@ -4067,6 +4070,27 @@ var messages = map[MsgKey]map[Language]string{
 		LangTraditionalChinese: "暫無目錄歷史。可傳送 `/dir <路徑>` 切換，或點 **重置** 恢復預設目錄。",
 		LangJapanese:           "まだディレクトリ履歴がありません。`/dir <パス>` で切替えるか、**リセット** で既定に戻せます。",
 		LangSpanish:            "Aún no hay historial de directorios. Usa `/dir <ruta>` o **Restablecer** al valor por defecto.",
+	},
+	MsgDirRecentTitle: {
+		LangEnglish:            "🕘 Recent %s projects",
+		LangChinese:            "🕘 最近 %s 项目",
+		LangTraditionalChinese: "🕘 最近 %s 專案",
+		LangJapanese:           "🕘 最近の %s プロジェクト",
+		LangSpanish:            "🕘 Proyectos recientes de %s",
+	},
+	MsgDirRecentMeta: {
+		LangEnglish:            "%d sessions · %s",
+		LangChinese:            "%d 个会话 · %s",
+		LangTraditionalChinese: "%d 個會話 · %s",
+		LangJapanese:           "%d セッション · %s",
+		LangSpanish:            "%d sesiones · %s",
+	},
+	MsgDirSwitchedToast: {
+		LangEnglish:            "✅ Switched to %s",
+		LangChinese:            "✅ 已切换到 %s",
+		LangTraditionalChinese: "✅ 已切換到 %s",
+		LangJapanese:           "✅ %s に切り替えました",
+		LangSpanish:            "✅ Cambiado a %s",
 	},
 	MsgDirCardReset: {
 		LangEnglish:            "Reset",
