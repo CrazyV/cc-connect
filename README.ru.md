@@ -40,6 +40,9 @@
 </p>
 
 
+> **Примечание:** это личный форк [chenhg5/cc-connect](https://github.com/chenhg5/cc-connect).
+> Описание изменений: [FORK.md](FORK.md).
+
 ## ❤️ Спонсоры
 
 > Хотите разместить здесь информацию о себе? Контакты: chg80333@gmail.com | WeChat: mongorz
