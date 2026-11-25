@@ -65,6 +65,12 @@ git merge upstream/main
 
 `upstream` points at `chenhg5/cc-connect`; `origin` points at this fork.
 
+## Scope and Contributions
+
+This fork stays close to upstream. Changes unrelated to the recent-project
+feature should go to [chenhg5/cc-connect](https://github.com/chenhg5/cc-connect)
+so all users benefit. Fork-specific issues can be reported here.
+
 ## License
 
 MIT. Upstream copyright is preserved in [LICENSE](LICENSE).
@@ -111,3 +117,8 @@ Codex 与 Claude Code 的项目列表互不混用；未实现该能力的 Agent 
 git fetch upstream
 git merge upstream/main
 ```
+
+### 范围与贡献
+
+本 fork 尽量贴近上游。与“最近项目”功能无关的修复请提交到上游仓库，
+让所有用户受益；仅与本 fork 相关的问题可以在这里反馈。
